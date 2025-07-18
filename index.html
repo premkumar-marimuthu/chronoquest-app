@@ -1,0 +1,620 @@
+<!--
+  FILE: index.html
+  This is the main file for your application.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChronoQuest</title>
+
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href="manifest.json">
+    <!-- Theme color for browser UI -->
+    <meta name="theme-color" content="#4299e1">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a5568; /* slate-600 */
+            --secondary-color: #a0aec0; /* slate-400 */
+            --background-color: #f7fafc; /* gray-50 */
+            --card-background: #ffffff;
+            --accent-color: #4299e1; /* blue-400 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+        }
+        .font-brand {
+            font-family: 'Playfair Display', serif;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 10;
+            cursor: default;
+        }
+        .leaflet-popup-content-wrapper {
+            background-color: var(--card-background);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .leaflet-popup-content {
+            margin: 15px 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .leaflet-popup-tip {
+            background: var(--card-background);
+        }
+        .custom-popup .title {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+        .custom-popup .description {
+            margin-bottom: 12px;
+        }
+        .custom-popup .action-button {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .custom-popup .action-button:hover {
+            background-color: #3182ce; /* blue-500 */
+        }
+        .slide-in-panel {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(100%);
+        }
+        .slide-in-panel.open {
+            transform: translateX(0);
+        }
+        .slide-out-panel {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(-100%);
+        }
+        .slide-out-panel.open {
+            transform: translateX(0);
+        }
+        .modal-overlay {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-content {
+            transition: transform 0.3s ease-in-out;
+        }
+        .quest-step.completed {
+            text-decoration: line-through;
+            color: var(--secondary-color);
+        }
+        .quest-step.active {
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+        .progress-bar-fill {
+            transition: width 0.5s ease-in-out;
+        }
+        #ar-view {
+            background-color: rgba(0,0,0,0.8);
+            color: white;
+        }
+        #ar-image-container {
+            border: 4px dashed var(--accent-color);
+            background-size: cover;
+            background-position: center;
+        }
+        .pulsate {
+            animation: pulsate 2s infinite;
+        }
+        @keyframes pulsate {
+            0% { box-shadow: 0 0 0 0 rgba(66, 153, 225, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(66, 153, 225, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(66, 153, 225, 0); }
+        }
+        .quest-card {
+            transition: all 0.2s ease-in-out;
+        }
+        .quest-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .quest-card.active-quest-card {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px var(--accent-color);
+        }
+        .spinner {
+            border-top-color: var(--accent-color);
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="overflow-hidden h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md z-30 flex items-center justify-between p-3">
+        <button id="quest-log-button" class="p-2 rounded-lg hover:bg-gray-100 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+        </button>
+        <h1 class="font-brand text-2xl text-gray-700">ChronoQuest</h1>
+        <button id="profile-button" class="p-2 rounded-lg hover:bg-gray-100 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow relative">
+        <div id="map"></div>
+
+        <!-- Recenter Button -->
+        <button id="recenter-button" class="absolute bottom-5 right-5 z-20 bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><line x1="21" y1="12" x2="23" y2="12"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line></svg>
+        </button>
+
+        <!-- Quest Log Panel (Left) -->
+        <div id="quest-log-panel" class="slide-out-panel fixed top-0 left-0 h-full w-full md:w-1/3 lg:w-1/4 bg-white shadow-lg z-40 p-6 flex flex-col">
+            <div class="flex-shrink-0 flex items-center justify-between mb-6">
+                <h2 class="font-brand text-2xl text-gray-800">Quest Log</h2>
+                <button id="close-quest-log" class="p-2 rounded-full hover:bg-gray-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div id="quest-list" class="flex-grow overflow-y-auto space-y-4">
+                <!-- Quest cards will be injected here -->
+            </div>
+            <div class="flex-shrink-0 pt-4">
+                <button id="generate-quest-button" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M12 5v14M5 12h14"></path></svg>
+                    Generate New Quest (AI)
+                </button>
+                 <div id="ai-spinner" class="hidden w-full mt-2 flex items-center justify-center text-gray-500">
+                    <div class="spinner w-5 h-5 border-2 border-gray-200 rounded-full"></div>
+                    <span class="ml-2">Generating...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Panel (Right) -->
+        <div id="profile-panel" class="slide-in-panel fixed top-0 right-0 h-full w-full md:w-1/3 lg:w-1/4 bg-white shadow-lg z-40 p-6 flex flex-col">
+            <div class="flex-shrink-0 flex items-center justify-between mb-6">
+                <h2 class="font-brand text-2xl text-gray-800">Explorer Profile</h2>
+                <button id="close-profile" class="p-2 rounded-full hover:bg-gray-200">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="flex-grow overflow-y-auto">
+                <div class="text-center mb-6">
+                    <img src="https://placehold.co/100x100/4299e1/FFFFFF?text=You" class="rounded-full mx-auto mb-3 border-4 border-white shadow-md">
+                    <h3 class="font-bold text-xl text-gray-700">Time Traveler</h3>
+                    <p class="text-sm text-gray-500">Level 1 Historian</p>
+                </div>
+                <div class="mb-6">
+                    <h4 class="font-semibold mb-2 text-gray-600">Statistics</h4>
+                    <div class="bg-gray-100 p-4 rounded-lg">
+                        <div class="flex justify-between mb-2"><span>Quests Completed</span><span id="quests-completed-stat">0</span></div>
+                        <div class="flex justify-between"><span>Time Echoes Found</span><span id="echoes-found-stat">0</span></div>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-semibold mb-2 text-gray-600">Collected Echoes</h4>
+                    <div id="collected-echoes-list" class="space-y-3">
+                        <p class="text-gray-500 italic">No echoes collected yet. Start exploring!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AR View Modal -->
+        <div id="ar-view" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 hidden">
+            <div class="modal-content bg-gray-800 rounded-lg shadow-2xl w-11/12 max-w-2xl p-6 text-white relative transform scale-95">
+                 <button id="close-ar-view" class="absolute top-4 right-4 p-2 rounded-full bg-gray-700 hover:bg-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                <h2 id="ar-title" class="font-brand text-3xl mb-4 text-blue-300">Time Echo</h2>
+                <div class="flex flex-col md:flex-row gap-6">
+                    <div class="md:w-1/2">
+                        <h3 class="font-semibold text-lg mb-2">Then vs. Now</h3>
+                        <div id="ar-image-container" class="w-full h-64 rounded-lg bg-gray-900 flex items-center justify-center relative overflow-hidden">
+                           <img id="ar-image-then" src="" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-700" alt="Historical View">
+                           <img id="ar-image-now" src="https://placehold.co/600x400/cccccc/000000?text=Modern+View" class="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 opacity-0" alt="Modern View">
+                        </div>
+                         <div class="mt-2 flex items-center justify-center space-x-2 text-sm">
+                            <span>Then</span>
+                            <input id="image-slider" type="range" min="0" max="1" step="0.01" value="0" class="w-full">
+                            <span>Now</span>
+                        </div>
+                    </div>
+                    <div class="md:w-1/2">
+                        <h3 class="font-semibold text-lg mb-2">Historical Record</h3>
+                        <p id="ar-description" class="text-gray-300 h-48 overflow-y-auto pr-2"></p>
+                        <button id="collect-echo-button" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 transform hover:scale-105">
+                            Collect Time Echo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+    // --- PWA Service Worker Registration ---
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            // Use an absolute path for the service worker to avoid issues with relative paths on sub-pages.
+            navigator.serviceWorker.register('sw.js')
+                .then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                })
+                .catch(err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATABASE ---
+        const questsDB = [
+            {
+                id: 'coimbatore_pioneer',
+                title: "The Pioneer's Trail",
+                description: "Trace the steps of Coimbatore's early industrial visionaries.",
+                steps: [
+                    { id: 'town_hall', title: "The Civic Heart", clue: "Begin at the city's grand colonial-era municipal building.", coordinates: [10.9950, 76.9655], isCompleted: false, echo: { title: "Victoria Town Hall", description: "Built in 1892, this iconic red-brick building has been the center of Coimbatore's administration for decades.", imageUrl: 'https://i.imgur.com/8a5dYyW.jpg', modernImageUrl: 'https://i.imgur.com/o3L3c5p.jpg'}},
+                    { id: 'psg', title: "The Seed of Industry", clue: "Head to a place synonymous with education and industry, founded by philanthropic pioneers.", coordinates: [11.0229, 76.9677], isCompleted: false, echo: { title: "PSG Industrial Institute", description: "Established in 1926, this was a cornerstone of Coimbatore's industrial vision, training generations of engineers.", imageUrl: 'https://i.imgur.com/uF1fLmd.jpg', modernImageUrl: 'https://i.imgur.com/g9v2m1Q.jpg'}},
+                    { id: 'siruvani', title: "The Quencher of Thirst", clue: "Discover the source that quenched the city's thirst, commemorated near the main railway station.", coordinates: [10.9930, 76.9590], isCompleted: false, echo: { title: "Siruvani Water Scheme", description: "Championed by Sir Robert Stanes, this engineering marvel brought fresh water from the Western Ghats, fueling the city's growth.", imageUrl: 'https://i.imgur.com/tP0aJjE.jpg', modernImageUrl: 'https://i.imgur.com/sW9x1Bf.jpg'}}
+                ]
+            },
+            {
+                id: 'textile_legacy',
+                title: "The Fabric of a City",
+                description: "Unravel the story of how Coimbatore became the 'Manchester of South India'.",
+                steps: [
+                    { id: 'old_mill', title: "The First Spindle", clue: "Find one of the first textile mills, located in the heart of the old city, a testament to the dawn of an era.", coordinates: [10.9995, 76.9621], isCompleted: false, echo: { title: "Stanes Mill", description: "One of the earliest mills, established in the late 19th century, marking the beginning of the textile boom.", imageUrl: 'https://i.imgur.com/dJ8bU8W.jpg', modernImageUrl: 'https://i.imgur.com/5rE3n1t.jpg'}},
+                    { id: 'cotton_market', title: "The White Gold Hub", clue: "Visit the bustling wholesale market where cotton, the 'white gold', has been traded for over a century.", coordinates: [10.9915, 76.9705], isCompleted: false, echo: { title: "TNAU Cotton Market", description: "This market was the epicenter of the raw cotton trade, connecting farmers to the burgeoning mills and shaping the city's economy.", imageUrl: 'https://i.imgur.com/9xYqG9r.jpg', modernImageUrl: 'https://i.imgur.com/Y4w3R7V.jpg'}}
+                ]
+            }
+        ];
+
+        let userProfile = {
+            level: 1,
+            questsCompleted: 0,
+            collectedEchoes: [],
+            activeQuestId: questsDB[0].id
+        };
+
+        // --- MAP INITIALIZATION ---
+        const map = L.map('map', { zoomControl: false }).setView([10.9950, 76.9655], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            maxZoom: 20
+        }).addTo(map);
+
+        const questMarkers = new L.LayerGroup().addTo(map);
+        let userMarker = null;
+        let userLocation = null;
+
+        // --- UI ELEMENTS ---
+        const questLogButton = document.getElementById('quest-log-button');
+        const profileButton = document.getElementById('profile-button');
+        const questLogPanel = document.getElementById('quest-log-panel');
+        const profilePanel = document.getElementById('profile-panel');
+        const closeQuestLog = document.getElementById('close-quest-log');
+        const closeProfile = document.getElementById('close-profile');
+        const arView = document.getElementById('ar-view');
+        const closeArView = document.getElementById('close-ar-view');
+        const collectEchoButton = document.getElementById('collect-echo-button');
+        const imageSlider = document.getElementById('image-slider');
+        const recenterButton = document.getElementById('recenter-button');
+        const generateQuestButton = document.getElementById('generate-quest-button');
+        const aiSpinner = document.getElementById('ai-spinner');
+
+        // --- FUNCTIONS ---
+        const togglePanel = (panel) => {
+            const isQuestPanel = panel.id.includes('quest');
+            const otherPanel = isQuestPanel ? profilePanel : questLogPanel;
+            if(otherPanel.classList.contains('open')) otherPanel.classList.remove('open');
+            panel.classList.toggle('open');
+        };
+
+        const getActiveQuest = () => questsDB.find(q => q.id === userProfile.activeQuestId);
+
+        const getCurrentStepIndex = (quest) => {
+            if (!quest) return -1;
+            const firstUncompleted = quest.steps.findIndex(s => !s.isCompleted);
+            return firstUncompleted === -1 ? quest.steps.length : firstUncompleted;
+        };
+
+        const updateQuestLog = () => {
+            const questList = document.getElementById('quest-list');
+            questList.innerHTML = questsDB.map(quest => {
+                const stepIndex = getCurrentStepIndex(quest);
+                const progressPercent = (stepIndex / quest.steps.length) * 100;
+                const isActive = quest.id === userProfile.activeQuestId;
+
+                let stepHtml = '';
+                if (isActive) {
+                    stepHtml = `
+                    <ul class="space-y-2 mt-3 text-sm">
+                        ${quest.steps.map((step, index) => `
+                            <li class="quest-step ${step.isCompleted ? 'completed' : ''} ${index === stepIndex ? 'active' : ''}">
+                                <span class="font-semibold">${index + 1}. ${step.title}</span>
+                                ${index === stepIndex ? `<p class="text-xs text-gray-500 pl-4 pt-1">${step.clue}</p>` : ''}
+                            </li>
+                        `).join('')}
+                    </ul>`;
+                }
+
+                return `
+                <div class="quest-card border rounded-lg p-4 cursor-pointer ${isActive ? 'active-quest-card' : 'border-gray-200'}" onclick="window.app.setActiveQuest('${quest.id}')">
+                    <h3 class="font-bold text-gray-800">${quest.title}</h3>
+                    <p class="text-sm text-gray-600 mb-3">${quest.description}</p>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-400 h-2 rounded-full progress-bar-fill" style="width: ${progressPercent}%"></div>
+                    </div>
+                    ${isActive ? stepHtml : ''}
+                </div>
+                `;
+            }).join('');
+        };
+
+        const updateProfile = () => {
+            const completedQuestsCount = questsDB.filter(q => getCurrentStepIndex(q) === q.steps.length).length;
+            userProfile.questsCompleted = completedQuestsCount;
+
+            document.getElementById('quests-completed-stat').textContent = userProfile.questsCompleted;
+            document.getElementById('echoes-found-stat').textContent = userProfile.collectedEchoes.length;
+
+            const list = document.getElementById('collected-echoes-list');
+            if (userProfile.collectedEchoes.length === 0) {
+                list.innerHTML = `<p class="text-gray-500 italic">No echoes collected yet. Start exploring!</p>`;
+            } else {
+                list.innerHTML = userProfile.collectedEchoes.map(echo => `
+                    <div class="bg-gray-100 p-3 rounded-lg">
+                        <p class="font-semibold text-gray-700">${echo.title}</p>
+                        <p class="text-sm text-gray-500">${echo.description.substring(0, 70)}...</p>
+                    </div>
+                `).join('');
+            }
+        };
+
+        const updateMap = () => {
+            questMarkers.clearLayers();
+            const quest = getActiveQuest();
+            if (!quest) return;
+
+            const stepIndex = getCurrentStepIndex(quest);
+            if (stepIndex >= quest.steps.length) return;
+
+            const currentStep = quest.steps[stepIndex];
+            const icon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center text-white font-bold shadow-lg pulsate border-2 border-white">!</div>`,
+                iconSize: [30, 42],
+                iconAnchor: [15, 42]
+            });
+
+            const activeMarker = L.marker(currentStep.coordinates, { icon: icon }).addTo(questMarkers);
+
+            const popupContent = `
+                <div class="custom-popup">
+                    <div class="title">${currentStep.title}</div>
+                    <div class="description">${currentStep.clue}</div>
+                    <div class="action-button" onclick="window.app.openArView('${quest.id}', '${currentStep.id}')">Investigate Location</div>
+                </div>
+            `;
+            activeMarker.bindPopup(popupContent).on('click', () => {
+                map.flyTo(currentStep.coordinates, 17);
+            });
+        };
+
+        window.app = {
+            openArView: (questId, stepId) => {
+                const quest = questsDB.find(q => q.id === questId);
+                const step = quest.steps.find(s => s.id === stepId);
+                if (!step) return;
+
+                document.getElementById('ar-title').textContent = step.echo.title;
+                document.getElementById('ar-description').textContent = step.echo.description;
+
+                const thenImg = document.getElementById('ar-image-then');
+                const nowImg = document.getElementById('ar-image-now');
+
+                thenImg.src = 'https://placehold.co/600x400/333333/ffffff?text=Loading...';
+                nowImg.src = 'https://placehold.co/600x400/cccccc/000000?text=Loading...';
+
+                const thenPreload = new Image();
+                thenPreload.src = step.echo.imageUrl;
+                thenPreload.onload = () => { thenImg.src = step.echo.imageUrl; };
+                thenPreload.onerror = () => { thenImg.src = 'https://placehold.co/600x400/333333/ffffff?text=Historical+Image+Not+Found'; };
+
+                const nowPreload = new Image();
+                nowPreload.src = step.echo.modernImageUrl;
+                nowPreload.onload = () => { nowImg.src = step.echo.modernImageUrl; };
+                nowPreload.onerror = () => { nowImg.src = 'https://placehold.co/600x400/cccccc/000000?text=Modern+View'; };
+
+                imageSlider.value = 0;
+                nowImg.style.opacity = 0;
+
+                collectEchoButton.dataset.questId = questId;
+                collectEchoButton.dataset.stepId = stepId;
+                collectEchoButton.disabled = step.isCompleted;
+                collectEchoButton.textContent = step.isCompleted ? 'Echo Already Collected' : 'Collect Time Echo';
+
+                arView.classList.remove('hidden');
+                setTimeout(() => arView.querySelector('.modal-content').classList.remove('scale-95'), 10);
+            },
+            setActiveQuest: (questId) => {
+                userProfile.activeQuestId = questId;
+                const quest = getActiveQuest();
+                const stepIndex = getCurrentStepIndex(quest);
+                if(quest && stepIndex < quest.steps.length) {
+                    map.flyTo(quest.steps[stepIndex].coordinates, 15);
+                }
+                updateAllUI();
+            }
+        };
+
+        const closeArViewFunc = () => {
+            arView.querySelector('.modal-content').classList.add('scale-95');
+            setTimeout(() => arView.classList.add('hidden'), 300);
+        };
+
+        const collectEcho = () => {
+            const questId = collectEchoButton.dataset.questId;
+            const stepId = collectEchoButton.dataset.stepId;
+            const quest = questsDB.find(q => q.id === questId);
+            const step = quest.steps.find(s => s.id === stepId);
+
+            if (step && !step.isCompleted) {
+                step.isCompleted = true;
+                if (!userProfile.collectedEchoes.some(e => e.title === step.echo.title)) {
+                    userProfile.collectedEchoes.push(step.echo);
+                }
+
+                const stepIndex = getCurrentStepIndex(quest);
+                if (stepIndex >= quest.steps.length) {
+                    setTimeout(() => alert(`Quest Complete! You've uncovered '${quest.title}'.`), 500);
+                }
+
+                closeArViewFunc();
+                updateAllUI();
+            }
+        };
+
+        const handleImageSlider = (e) => document.getElementById('ar-image-now').style.opacity = e.target.value;
+
+        const updateAllUI = () => {
+            updateQuestLog();
+            updateProfile();
+            updateMap();
+        };
+
+        const generateNewQuest = async () => {
+            generateQuestButton.disabled = true;
+            aiSpinner.classList.remove('hidden');
+
+            const prompt = `Create a short, 1-step historical quest for the city of Coimbatore, India. The quest should be about a lesser-known historical fact, person, or place. Provide a creative quest title, a short description, a clue for the first step, and a title for the "Time Echo" discovery. The response must be in JSON format like this: {"title": "Quest Title", "description": "Quest Description", "clue": "First Step Clue", "echoTitle": "Echo Title"}`;
+
+            try {
+                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    const cleanJsonString = text.replace(/```json|```/g, '').trim();
+                    const aiQuest = JSON.parse(cleanJsonString);
+
+                    const newQuest = {
+                        id: `ai_quest_${Date.now()}`,
+                        title: aiQuest.title,
+                        description: aiQuest.description,
+                        steps: [{
+                            id: 'ai_step_1',
+                            title: aiQuest.echoTitle,
+                            clue: aiQuest.clue,
+                            coordinates: [11.005, 76.965], // Generic central coordinate
+                            isCompleted: false,
+                            echo: {
+                                title: aiQuest.echoTitle,
+                                description: "This AI-generated quest is a glimpse into the future of ChronoQuest! The location and details are illustrative. In a full version, the AI would pinpoint exact locations and find real historical images.",
+                                imageUrl: 'https://placehold.co/600x400/718096/FFFFFF?text=AI+Generated',
+                                modernImageUrl: 'https://placehold.co/600x400/E2E8F0/000000?text=AI+Generated'
+                            }
+                        }]
+                    };
+                    questsDB.push(newQuest);
+                    userProfile.activeQuestId = newQuest.id;
+                    updateAllUI();
+                    questLogPanel.classList.add('open');
+
+                } else {
+                    throw new Error("No content received from AI.");
+                }
+
+            } catch (error) {
+                console.error("Error generating quest:", error);
+                alert("Failed to generate an AI quest. Please try again later.");
+            } finally {
+                generateQuestButton.disabled = false;
+                aiSpinner.classList.add('hidden');
+            }
+        };
+
+        // --- EVENT LISTENERS ---
+        questLogButton.addEventListener('click', () => togglePanel(questLogPanel));
+        profileButton.addEventListener('click', () => togglePanel(profilePanel));
+        closeQuestLog.addEventListener('click', () => questLogPanel.classList.remove('open'));
+        closeProfile.addEventListener('click', () => profilePanel.classList.remove('open'));
+        closeArView.addEventListener('click', closeArViewFunc);
+        collectEchoButton.addEventListener('click', collectEcho);
+        imageSlider.addEventListener('input', handleImageSlider);
+        recenterButton.addEventListener('click', () => {
+            if (userLocation) map.flyTo(userLocation, 16);
+        });
+        generateQuestButton.addEventListener('click', generateNewQuest);
+
+        // --- INITIALIZATION ---
+        updateAllUI();
+
+        const userIcon = L.divIcon({
+            className: 'custom-user-icon',
+            html: `<div class="w-5 h-5 bg-blue-600 rounded-full border-2 border-white shadow-md"></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(position => {
+                userLocation = [position.coords.latitude, position.coords.longitude];
+                if (!userMarker) {
+                    userMarker = L.marker(userLocation, { icon: userIcon }).addTo(map);
+                    map.setView(userLocation, 16);
+                } else {
+                    userMarker.setLatLng(userLocation);
+                }
+            }, (error) => {
+                console.warn("Could not get user location:", error.message);
+                if (!userMarker) { // Fallback if location is denied on first load
+                    userMarker = L.marker([10.9950, 76.9655], { icon: userIcon }).addTo(map);
+                }
+            }, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            });
+        } else {
+             userMarker = L.marker([10.9950, 76.9655], { icon: userIcon }).addTo(map);
+        }
+
+    });
+    </script>
+</body>
+</html>
